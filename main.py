@@ -49,14 +49,8 @@ async def create_digest(
     rating: int | None = 0,
     count: int | None = 3,
 ):
-    posts = await scanner.scan(session, user_id=user_id)
-    if rating is not None:
-        posts = popularity_filter(posts, min_popularity=rating)
-    if count:
-        posts = posts[:count]
     digest = await generate_digest(session, user_id)
-    # upd_d = await update_digest(session, digest, posts)
-    worker.add_task(update_digest, session, digest, posts)
+    worker.add_task(update_digest, session, user_id, digest, rating, count)
 
     return digest
 

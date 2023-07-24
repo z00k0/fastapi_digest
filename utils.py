@@ -6,6 +6,10 @@ import random
 # import requests
 from typing import List
 from models import User, Subscription, Post, Digest
+from scanner import SQLitePostScanner
+from filters import popularity_filter
+
+scanner = SQLitePostScanner()
 
 
 async def populate_db(
@@ -51,7 +55,15 @@ async def generate_digest(session: AsyncSession, user_id: int) -> Digest:
     return digest.first()
 
 
-async def update_digest(session: AsyncSession, digest: Digest, posts: List[Post]):
+async def update_digest(
+    session: AsyncSession, user_id: int, digest: Digest, rating: int, count: int
+):
+    posts = await scanner.scan(session, user_id=user_id)
+    if rating is not None:
+        posts = popularity_filter(posts, min_popularity=rating)
+    sorted_posts = sorted(posts, key=lambda post: post.popularity_rating, reverse=True)
+    if count:
+        sorted_posts = sorted_posts[:count]
     async with session.begin():
         digest = await session.scalars(
             select(Digest)
@@ -59,9 +71,7 @@ async def update_digest(session: AsyncSession, digest: Digest, posts: List[Post]
             .options(selectinload(Digest.post_list))
         )
         digest = digest.first()
-        digest.post_list.extend(posts)
-
-    return digest
+        digest.post_list.extend(sorted_posts)
 
 
 async def get_digest(session: AsyncSession, digest_id: int):
